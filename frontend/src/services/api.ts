@@ -1,0 +1,54 @@
+
+// const BASE_URL = "https://localhost:7166/api";
+// const BASE_URL = "http://localhost:5000/api";
+const BASE_URL = "http://192.168.0.193:5000/api";
+// const BASE_URL = "/api";
+// const BASE_URL = "http://private-messenger.runasp.net/api";
+// const BASE_URL = "https://mk-private-messenger-backend.somee.com/api";
+
+export const api = {
+  login: async (username: string) => {
+    const res = await fetch(`${BASE_URL}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username })
+    });
+    if (!res.ok) throw new Error("Login failed");
+    return res.json();
+  },
+
+  getConversations: async (userId: string) => {
+    const res = await fetch(`${BASE_URL}/conversations?userId=${userId}`);
+    if (!res.ok) throw new Error("Failed to fetch conversations");
+    return res.json();
+  },
+
+  getMessages: async (conversationId: string) => {
+    const res = await fetch(`${BASE_URL}/messages/${conversationId}`);
+    return res.json();
+  },
+
+  sendMessage: async ({ conversationId, senderId, content }: { conversationId: string; senderId: string; content: string }) => {
+    const res = await fetch(`${BASE_URL}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ConversationId: conversationId, SenderId: senderId, Content: content })
+    });
+
+    if (!res.ok) throw new Error("Failed to send message");
+    return res.json();
+  },
+
+  searchUsers: async (query: string, currentUserId: string) => {
+    const res = await fetch(`${BASE_URL}/users/search?query=${encodeURIComponent(query)}&currentUserId=${currentUserId}`);
+    if (!res.ok) throw new Error("Failed to search users");
+    return res.json();
+  },
+
+  startConversation: async (currentUserId: string, targetUserId: string) => {
+    const res = await fetch(`${BASE_URL}/conversations/start?currentUserId=${currentUserId}&targetUserId=${targetUserId}`, { method: "POST" });
+
+    if (!res.ok) throw new Error("Failed to start conversation");
+    return res.json();
+  }
+};

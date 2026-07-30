@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+*{
+    box-sizing: border-box;
+}
+
+body{
+    margin: 0;
+    font-family: Inter, system-ui, sans-serif;
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+}
+
+.icon-btn {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.dots::after {
+  content: "";
+  animation: dots 1.4s infinite;
+}
+
+@keyframes dots {
+  0% { content: ""; }
+  33% { content: "."; }
+  66% { content: ".."; }
+  100% { content: "..."; }
+}
