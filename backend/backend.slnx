@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="PrivateMessenger.Application/PrivateMessenger.Application.csproj" />
+  <Project Path="PrivateMessenger.Domain/PrivateMessenger.Domain.csproj" />
+  <Project Path="PrivateMessenger.Infrastructure/PrivateMessenger.Infrastructure.csproj" />
+  <Project Path="PrivateMessenger.Presentation/PrivateMessenger.Presentation.csproj" />
+</Solution>

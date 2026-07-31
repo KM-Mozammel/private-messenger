@@ -1,0 +1,92 @@
+<video id="localVideo" autoplay playsinline muted width="300"></video>
+<video id="remoteVideo" autoplay playsinline width="300"></video>
+<br><br>
+<button onclick="createOffer()">Create Offer</button>
+<button onclick="createAnswer()">Create Answer</button>
+<button onclick="setAnswer()">Set Answer</button>
+<br><br>
+<textarea id="sdpBox" rows="20" cols="80"></textarea>
+
+<script>
+let pc;
+let localStream;
+let iceCandidates = [];
+
+
+
+async function initWebRTC() {
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    document.getElementById('localVideo').srcObject = localStream;
+    pc = new RTCPeerConnection();
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+    pc.ontrack = (event) => {
+        document.getElementById('remoteVideo').srcObject = event.streams[0];
+    };
+    pc.onicecandidate = (event) => {
+        if (event.candidate) {
+            iceCandidates.push(event.candidate);
+        }
+    };
+    console.log('WebRTC initialized');
+}
+
+initWebRTC();
+
+function waitForICEGatheringComplete() {
+    return new Promise((resolve) => {
+        if (pc.iceGatheringState === 'complete') {
+            resolve();
+        } else {
+            function checkState() {
+                if (pc.iceGatheringState === 'complete') {
+                    pc.removeEventListener('icegatheringstatechange', checkState);
+                    resolve();
+                }
+            }
+            pc.addEventListener('icegatheringstatechange', checkState);
+        }
+    });
+}
+
+async function createOffer() {
+    iceCandidates = [];
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await waitForICEGatheringComplete();
+    document.getElementById('sdpBox').value = JSON.stringify({
+        sdp: pc.localDescription,
+        iceCandidates
+    });
+    console.log('Offer created', pc.localDescription);
+}
+
+async function createAnswer() {
+    const data = JSON.parse(document.getElementById('sdpBox').value);
+    await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+    if (data.iceCandidates) {
+        for (let c of data.iceCandidates) {
+            await pc.addIceCandidate(new RTCIceCandidate(c));
+        }
+    }
+    iceCandidates = [];
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    await waitForICEGatheringComplete();
+    document.getElementById('sdpBox').value = JSON.stringify({
+        sdp: pc.localDescription,
+        iceCandidates
+    });
+    console.log('Answer created', pc.localDescription);
+}
+
+async function setAnswer() {
+    const data = JSON.parse(document.getElementById('sdpBox').value);
+    await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+    if (data.iceCandidates) {
+        for (let c of data.iceCandidates) {
+            await pc.addIceCandidate(new RTCIceCandidate(c));
+        }
+    }
+    console.log('Connection should be established!');
+}
+</script>

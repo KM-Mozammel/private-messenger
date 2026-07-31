@@ -1,0 +1,16 @@
+D:\Projects\2026\private-messenger\backend\PrivateMessenger.Application\bin\Debug\net10.0\PrivateMessenger.Application.deps.json
+D:\Projects\2026\private-messenger\backend\PrivateMessenger.Application\bin\Debug\net10.0\PrivateMessenger.Application.dll
+D:\Projects\2026\private-messenger\backend\PrivateMessenger.Application\bin\Debug\net10.0\PrivateMessenger.Application.pdb
+D:\Projects\2026\private-messenger\backend\PrivateMessenger.Application\bin\Debug\net10.0\PrivateMessenger.Domain.dll
+D:\Projects\2026\private-messenger\backend\PrivateMessenger.Application\bin\Debug\net10.0\PrivateMessenger.Domain.pdb
+D:\Projects\2026\private-messenger\backend\PrivateMessenger.Application\obj\Debug\net10.0\PrivateMessenger.Application.csproj.AssemblyReference.cache
+D:\Projects\2026\private-messenger\backend\PrivateMessenger.Application\obj\Debug\net10.0\PrivateMessenger.Application.GeneratedMSBuildEditorConfig.editorconfig
+D:\Projects\2026\private-messenger\backend\PrivateMessenger.Application\obj\Debug\net10.0\PrivateMessenger.Application.AssemblyInfoInputs.cache
+D:\Projects\2026\private-messenger\backend\PrivateMessenger.Application\obj\Debug\net10.0\PrivateMessenger.Application.AssemblyInfo.cs
+D:\Projects\2026\private-messenger\backend\PrivateMessenger.Application\obj\Debug\net10.0\PrivateMessenger.Application.csproj.CoreCompileInputs.cache
+D:\Projects\2026\private-messenger\backend\PrivateMessenger.Application\obj\Debug\net10.0\PrivateMessenger.Application.sourcelink.json
+D:\Projects\2026\private-messenger\backend\PrivateMessenger.Application\obj\Debug\net10.0\PrivateM.73257D0F.Up2Date
+D:\Projects\2026\private-messenger\backend\PrivateMessenger.Application\obj\Debug\net10.0\PrivateMessenger.Application.dll
+D:\Projects\2026\private-messenger\backend\PrivateMessenger.Application\obj\Debug\net10.0\refint\PrivateMessenger.Application.dll
+D:\Projects\2026\private-messenger\backend\PrivateMessenger.Application\obj\Debug\net10.0\PrivateMessenger.Application.pdb
+D:\Projects\2026\private-messenger\backend\PrivateMessenger.Application\obj\Debug\net10.0\ref\PrivateMessenger.Application.dll

@@ -1,7 +1,7 @@
 
-// const BASE_URL = "https://localhost:7166/api";
+const BASE_URL = "https://localhost:7024/api";
 // const BASE_URL = "http://localhost:5000/api";
-const BASE_URL = "http://192.168.0.193:5000/api";
+// const BASE_URL = "http://192.168.0.193:5000/api";
 // const BASE_URL = "/api";
 // const BASE_URL = "http://private-messenger.runasp.net/api";
 // const BASE_URL = "https://mk-private-messenger-backend.somee.com/api";
@@ -46,7 +46,16 @@ export const api = {
   },
 
   startConversation: async (currentUserId: string, targetUserId: string) => {
-    const res = await fetch(`${BASE_URL}/conversations/start?currentUserId=${currentUserId}&targetUserId=${targetUserId}`, { method: "POST" });
+    const res = await fetch(`${BASE_URL}/conversations/start`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        currentUserId,
+        targetUserId,
+      }),
+    });
 
     if (!res.ok) throw new Error("Failed to start conversation");
     return res.json();
