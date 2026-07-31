@@ -20,6 +20,7 @@ function App() {
   const [showChat, setShowChat] = useState(false);
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
   const [activeChat, setActiveChat] = useState<ActiveChat | null>(null);
+  const { callState, startCall, receiveCall, endCall } = useCall();
 
   /* -------------------- RESPONSIVE -------------------- */
   useEffect(() => {
@@ -89,8 +90,6 @@ function App() {
     setShowChat(false);
     setActiveChat(null);
   };
-
-  const { callState, startCall, receiveCall, endCall } = useCall();
 
   return (
     <ChatLayout>
