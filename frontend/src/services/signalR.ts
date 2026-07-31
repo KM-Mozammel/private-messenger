@@ -12,7 +12,8 @@ export const connectSignalR = async (userId: string) => {
   }
 
   connection = new signalR.HubConnectionBuilder()
-    .withUrl(`https://localhost:7024/hubs/chat?userId=${userId}`)
+    // .withUrl(`https://localhost:7024/hubs/chat?userId=${userId}`)
+    .withUrl(`https://www.mk-private-messenger.somee.com/hubs/chat?userId=${userId}`)
     .withAutomaticReconnect()
     .build();
 

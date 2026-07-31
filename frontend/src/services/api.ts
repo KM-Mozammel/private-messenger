@@ -1,10 +1,6 @@
 
-const BASE_URL = "https://localhost:7024/api";
-// const BASE_URL = "http://localhost:5000/api";
-// const BASE_URL = "http://192.168.0.193:5000/api";
-// const BASE_URL = "/api";
-// const BASE_URL = "http://private-messenger.runasp.net/api";
-// const BASE_URL = "https://mk-private-messenger-backend.somee.com/api";
+// const BASE_URL = "https://localhost:7024/api";
+const BASE_URL = "https://www.mk-private-messenger.somee.com/api";
 
 export const api = {
   login: async (username: string) => {

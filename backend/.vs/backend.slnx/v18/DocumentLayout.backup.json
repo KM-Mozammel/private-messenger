@@ -3,8 +3,12 @@
   "WorkspaceRootPath": "D:\\Projects\\2026\\private-messenger\\backend\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{86634F73-E975-7F28-EE75-B81DC26CD609}|PrivateMessenger.Presentation\\PrivateMessenger.Presentation.csproj|d:\\projects\\2026\\private-messenger\\backend\\privatemessenger.presentation\\controllers\\messagecontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{86634F73-E975-7F28-EE75-B81DC26CD609}|PrivateMessenger.Presentation\\PrivateMessenger.Presentation.csproj|solutionrelative:privatemessenger.presentation\\controllers\\messagecontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{86634F73-E975-7F28-EE75-B81DC26CD609}|PrivateMessenger.Presentation\\PrivateMessenger.Presentation.csproj|d:\\projects\\2026\\private-messenger\\backend\\privatemessenger.presentation\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{86634F73-E975-7F28-EE75-B81DC26CD609}|PrivateMessenger.Presentation\\PrivateMessenger.Presentation.csproj|solutionrelative:privatemessenger.presentation\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{86634F73-E975-7F28-EE75-B81DC26CD609}|PrivateMessenger.Presentation\\PrivateMessenger.Presentation.csproj|d:\\projects\\2026\\private-messenger\\backend\\privatemessenger.presentation\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{86634F73-E975-7F28-EE75-B81DC26CD609}|PrivateMessenger.Presentation\\PrivateMessenger.Presentation.csproj|solutionrelative:privatemessenger.presentation\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -27,14 +31,27 @@
             {
               "$type": "Document",
               "DocumentIndex": 0,
-              "Title": "MessageController.cs",
-              "DocumentMoniker": "D:\\Projects\\2026\\private-messenger\\backend\\PrivateMessenger.Presentation\\Controllers\\MessageController.cs",
-              "RelativeDocumentMoniker": "PrivateMessenger.Presentation\\Controllers\\MessageController.cs",
-              "ToolTip": "D:\\Projects\\2026\\private-messenger\\backend\\PrivateMessenger.Presentation\\Controllers\\MessageController.cs",
-              "RelativeToolTip": "PrivateMessenger.Presentation\\Controllers\\MessageController.cs",
-              "ViewState": "AgIAABsAAADg//////8nwC8AAABtAAAAAAAAAA==",
+              "Title": "appsettings.json",
+              "DocumentMoniker": "D:\\Projects\\2026\\private-messenger\\backend\\PrivateMessenger.Presentation\\appsettings.json",
+              "RelativeDocumentMoniker": "PrivateMessenger.Presentation\\appsettings.json",
+              "ToolTip": "D:\\Projects\\2026\\private-messenger\\backend\\PrivateMessenger.Presentation\\appsettings.json",
+              "RelativeToolTip": "PrivateMessenger.Presentation\\appsettings.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA4AAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2026-07-31T12:04:09.706Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "Program.cs",
+              "DocumentMoniker": "D:\\Projects\\2026\\private-messenger\\backend\\PrivateMessenger.Presentation\\Program.cs",
+              "RelativeDocumentMoniker": "PrivateMessenger.Presentation\\Program.cs",
+              "ToolTip": "D:\\Projects\\2026\\private-messenger\\backend\\PrivateMessenger.Presentation\\Program.cs",
+              "RelativeToolTip": "PrivateMessenger.Presentation\\Program.cs",
+              "ViewState": "AgIAABIAAACAZmZmZmYkwC8AAAAXAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-07-31T10:51:14.932Z",
+              "WhenOpened": "2026-07-31T12:02:58.171Z",
               "EditorCaption": ""
             }
           ]
