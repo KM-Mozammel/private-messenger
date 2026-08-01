@@ -1,6 +1,6 @@
 
-// const BASE_URL = "https://localhost:7024/api";
-const BASE_URL = "https://www.mk-private-messenger.somee.com/api";
+const env = (import.meta as ImportMeta & { env?: { VITE_BASE_URL?: string } }).env;
+const BASE_URL = (env?.VITE_BASE_URL || "https://localhost:7024/api").replace(/\/$/, "");
 
 export const api = {
   login: async (username: string) => {

@@ -20,11 +20,14 @@ Icon?
 !.vscode/launch.json
 
 .idea/
+**/.vs/
+**/*.vsidx
 *.suo
 *.user
 *.userosscache
 *.sln.docstates
 *.rsuser
+*.slnx.user
 
 ################################################################################
 # Logs
@@ -55,6 +58,7 @@ frontend/dist/
 frontend/.vite/
 frontend/.cache/
 frontend/.eslintcache
+**/vite-env.d.ts
 
 ################################################################################
 # Package Managers
@@ -83,6 +87,16 @@ backend/obj/
 **/[Oo]bj/
 **/publish/
 **/artifacts/
+**/logs/
+**/project.assets.json
+**/project.nuget.cache
+**/*.AssemblyInfo.cs
+**/*.AssemblyInfoInputs.cache
+**/*.assets.cache
+**/*.csproj.AssemblyReference.cache
+**/*.sourcelink.json
+**/*.deps.json
+**/*.runtimeconfig.json
 
 ################################################################################
 # Visual Studio

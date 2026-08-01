@@ -1,5 +1,8 @@
 import * as signalR from "@microsoft/signalr";
 
+const env = (import.meta as ImportMeta & { env?: { VITE_SIGNALR_URL?: string } }).env;
+const SIGNALR_URL = (env?.VITE_SIGNALR_URL || "https://localhost:7024/hubs/chat").replace(/\/$/, "");
+
 let connection: signalR.HubConnection | null = null;
 
 export const connectSignalR = async (userId: string) => {
@@ -12,8 +15,7 @@ export const connectSignalR = async (userId: string) => {
   }
 
   connection = new signalR.HubConnectionBuilder()
-    // .withUrl(`https://localhost:7024/hubs/chat?userId=${userId}`)
-    .withUrl(`https://www.mk-private-messenger.somee.com/hubs/chat?userId=${userId}`)
+    .withUrl(`${SIGNALR_URL}?userId=${userId}`)
     .withAutomaticReconnect()
     .build();
 
