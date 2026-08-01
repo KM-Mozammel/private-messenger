@@ -1,105 +1,54 @@
-import { useEffect, useState } from "react";
+// src/App.tsx
+import { useState, useEffect } from "react";
 import ChatSurface from "./components/layouts/ChatSurface";
 import Sidebar from "./components/layouts/Sidebar";
 import ChatLayout from "./components/layouts/ChatLayout";
 import MessageList from "./components/chat/MessageList";
 import MessageInput from "./components/chat/MessageInput";
 import ChatList from "./components/chat/ChatList";
-import TypingIndicator from "./components/chat/TypingIndicator";
 import ChatHeader from "./components/chat/ChatHeader";
 import LogoutButton from "./components/auth/LogoutButton";
 import Login from "./components/auth/Login";
-import { connectSignalR, joinConversation, leaveConversation } from "./services/signalR";
 import UserGreeting from "./components/user/UserGreeting";
-import { ActiveChat, User } from "./types/models";
-import { useCall } from "./context/CallContext";
+
+import { ActiveChat } from "./types/models";
+import { useAuth } from "./context/AuthContext";
+import { useSignalR } from "./context/SignalRContext";
+import { useMediaQuery } from "./hooks/useMediaQuery";
 
 function App() {
-  const [authChecked, setAuthChecked] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
   const [showChat, setShowChat] = useState(false);
-  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
   const [activeChat, setActiveChat] = useState<ActiveChat | null>(null);
-  const { callState, startCall, receiveCall, endCall } = useCall();
 
-  /* -------------------- RESPONSIVE -------------------- */
+  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const { user, login, logout } = useAuth();
+  const { isConnected, joinConversation, leaveConversation } = useSignalR();
+
+  /* Join/Leave SignalR Conversation Group */
   useEffect(() => {
-    const onResize = () => setIsDesktop(window.innerWidth >= 768);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
+    if (!activeChat || !isConnected) return;
 
-  /* -------------------- AUTH CHECK -------------------- */
-  useEffect(() => {
-    const storedUser = localStorage.getItem("username");
-
-    if (!storedUser) {
-      setAuthChecked(true);
-      return;
-    }
-
-    try {
-      const parsedUser: User = JSON.parse(storedUser);
-      setUser(parsedUser);
-    } catch {
-      localStorage.removeItem("username");
-    } finally {
-      setAuthChecked(true);
-    }
-  }, []);
-
-  /* -------------------- SIGNALR -------------------- */
-  useEffect(() => {
-    if (!user) return;
-
-    connectSignalR(user.id)
-      .then(() => console.log("SignalR connected"))
-      .catch(err => console.error("SignalR error", err));
-  }, [user]);
-
-  useEffect(() => {
-    if (!activeChat) return;
     joinConversation(activeChat.conversationId);
 
     return () => {
       leaveConversation(activeChat.conversationId);
-    }
-  }, [activeChat]);
+    };
+  }, [activeChat, isConnected, joinConversation, leaveConversation]);
 
-  /* -------------------- LOADING -------------------- */
-  if (!authChecked) {
-    return null;
-  }
-
-  /* -------------------- LOGIN -------------------- */
+  /* LOGIN CHECK */
   if (!user) {
-    return (
-      <Login
-        onLogin={(loggedInUser) => {
-          localStorage.setItem("username", JSON.stringify(loggedInUser));
-          setUser(loggedInUser);
-        }}
-      />
-    );
+    return <Login onLogin={login} />;
   }
 
-  /* -------------------- LOGOUT -------------------- */
+  /* LOGOUT HANDLER */
   const handleLogout = () => {
-    localStorage.removeItem("username");
-    setUser(null);
+    logout();
     setShowChat(false);
     setActiveChat(null);
   };
 
   return (
     <ChatLayout>
-      {/* <div className="flex flex-col gap-2">
-        <p>Call state: {callState}</p>
-        <button onClick={() => startCall("user123", "audio")}>Start Audio</button>
-        <button onClick={() => receiveCall("user123", "video")}>Receive Video</button>
-        <button onClick={endCall}>End Call</button>
-      </div> */}
-
       {/* LEFT SIDEBAR */}
       {(isDesktop || !showChat) && (
         <Sidebar
@@ -127,7 +76,6 @@ function App() {
           {activeChat ? (
             <>
               <MessageList activeChat={activeChat} currentUser={user} />
-              {/* <TypingIndicator activeChat={activeChat} /> */}
               <MessageInput activeChat={activeChat} currentUser={user} />
             </>
           ) : (
@@ -135,17 +83,15 @@ function App() {
               Select a chat to start messaging
             </div>
           )}
-
         </ChatSurface>
       )}
 
       {/* RIGHT SIDEBAR */}
       {isDesktop && (
         <Sidebar title="Online Users">
-          {/* online users */}
+          {/* Online users list */}
         </Sidebar>
       )}
-
     </ChatLayout>
   );
 }

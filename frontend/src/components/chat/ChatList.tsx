@@ -1,7 +1,7 @@
 import type { ChatListProps, ConversationListItem, User } from "../../types/models";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../services/api";
-import { connectSignalR, onSignalREvent, offSignalREvent, joinConversation } from "../../services/signalR";
+import { useSignalR } from "../../context/SignalRContext";
 
 interface ConversationUpdatePayload {
   conversationId: string;
@@ -12,43 +12,33 @@ interface ConversationUpdatePayload {
 export default function ChatList({ onSelectChat, currentUserId }: ChatListProps & { currentUserId: string }) {
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<User[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loadingSearch, setLoadingSearch] = useState(false);
   const [conversations, setConversations] = useState<ConversationListItem[]>([]);
   const [loadingChats, setLoadingChats] = useState(false);
 
-  // Helper to fetch conversations from API (Initial load or fallback)
+  const { subscribe, joinConversation } = useSignalR();
+
+  /* -------------------- FETCH CONVERSATIONS -------------------- */
   const loadConversations = useCallback(async () => {
     try {
+      setLoadingChats(true);
       const data = await api.getConversations(currentUserId);
       setConversations(data);
     } catch (err) {
       console.error("Failed to load conversations:", err);
+    } finally {
+      setLoadingChats(false);
     }
   }, [currentUserId]);
 
-  // 1. Initial Load & SignalR Connection Setup
+  // Initial fetch on mount / user change
   useEffect(() => {
-    if (!currentUserId) return;
-
-    let isMounted = true;
-
-    const initializeConnection = async () => {
-      setLoadingChats(true);
-      await connectSignalR(currentUserId);
-      if (isMounted) {
-        await loadConversations();
-        setLoadingChats(false);
-      }
-    };
-
-    initializeConnection();
-
-    return () => {
-      isMounted = false;
-    };
+    if (currentUserId) {
+      loadConversations();
+    }
   }, [currentUserId, loadConversations]);
 
-  // 2. In-Memory State Mutation on Real-Time SignalR Event
+  /* -------------------- REAL-TIME SIGNALR LISTENER -------------------- */
   useEffect(() => {
     const handleConversationUpdate = (payload: ConversationUpdatePayload) => {
       console.log("Real-time update payload received:", payload);
@@ -58,21 +48,19 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
           (conv) => conv.conversationId === payload.conversationId
         );
 
-        // If the conversation exists in local state, update and reorder it
+        // If conversation exists locally, update lastMessage and move to top
         if (existingIndex !== -1) {
           const targetConv = prevConversations[existingIndex];
 
           const updatedConv: ConversationListItem = {
             ...targetConv,
             lastMessage: payload.lastMessage,
-            // Increment unread count only if current user is the receiver
             unreadCount:
               payload.senderId !== currentUserId
                 ? (targetConv.unreadCount || 0) + 1
-                : targetConv.unreadCount
+                : targetConv.unreadCount,
           };
 
-          // Remove old instance and move updated conversation to top of list
           const remainingConvs = prevConversations.filter(
             (conv) => conv.conversationId !== payload.conversationId
           );
@@ -80,20 +68,18 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
           return [updatedConv, ...remainingConvs];
         }
 
-        // Fallback: If it's a completely new chat thread not present in list, fetch full list
+        // Fallback: New chat thread received, re-fetch list from backend
         loadConversations();
         return prevConversations;
       });
     };
 
-    onSignalREvent("ConversationUpdated", handleConversationUpdate);
+    // Attach event listener via SignalR Context helper
+    const unsubscribe = subscribe("ConversationUpdated", handleConversationUpdate);
+    return () => unsubscribe();
+  }, [currentUserId, loadConversations, subscribe]);
 
-    return () => {
-      offSignalREvent("ConversationUpdated", handleConversationUpdate);
-    };
-  }, [currentUserId, loadConversations]);
-
-  // 3. Search Autocomplete
+  /* -------------------- USER SEARCH AUTOCOMPLETE -------------------- */
   useEffect(() => {
     if (search.trim() === "") {
       setResults([]);
@@ -103,13 +89,13 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
     const controller = new AbortController();
     const timeout = setTimeout(async () => {
       try {
-        setLoading(true);
+        setLoadingSearch(true);
         const users = await api.searchUsers(search, currentUserId);
         setResults(users);
       } catch (err) {
         if (err instanceof Error) console.error(err.message);
       } finally {
-        setLoading(false);
+        setLoadingSearch(false);
       }
     }, 300);
 
@@ -119,7 +105,7 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
     };
   }, [search, currentUserId]);
 
-  // 4. Handle selecting / creating new conversation
+  /* -------------------- HANDLERS -------------------- */
   const handleSelectUser = async (targetUser: User) => {
     try {
       const res = await api.startConversation(currentUserId, targetUser.id);
@@ -129,24 +115,22 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
         return;
       }
 
-      joinConversation(res.conversationId);
+      await joinConversation(res.conversationId);
 
       onSelectChat?.({
         conversationId: res.conversationId,
-        user: targetUser
+        user: targetUser,
       });
 
       setSearch("");
       setResults([]);
 
-      // Fetch fresh list to reflect newly initiated thread
       await loadConversations();
     } catch (err) {
       console.error("Failed to start/select conversation", err);
     }
   };
 
-  // Clear unread count when opening a chat
   const handleSelectConversation = (conv: any, otherUser: any) => {
     joinConversation(conv.conversationId);
 
@@ -181,11 +165,11 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
             marginBottom: "12px",
             borderRadius: "8px",
             border: "1px solid var(--border)",
-            background: "var(--bg-main)"
+            background: "var(--bg-main)",
           }}
         />
 
-        {(loading || results.length > 0) && (
+        {(loadingSearch || results.length > 0) && (
           <div
             style={{
               position: "absolute",
@@ -198,10 +182,10 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
               border: "1px solid var(--border)",
               borderRadius: "8px",
               boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-              padding: "4px 0"
+              padding: "4px 0",
             }}
           >
-            {loading && <div style={{ padding: "8px", fontSize: "12px" }}>Searching...</div>}
+            {loadingSearch && <div style={{ padding: "8px", fontSize: "12px" }}>Searching...</div>}
 
             {results.map((user) => (
               <div
@@ -211,7 +195,7 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
                   padding: "8px 12px",
                   cursor: "pointer",
                   borderBottom: "1px solid var(--border)",
-                  background: "var(--bg-surface)"
+                  background: "var(--bg-surface)",
                 }}
                 onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
                 onMouseLeave={(e) => (e.currentTarget.style.background = "var(--bg-surface)")}
@@ -220,7 +204,7 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
               </div>
             ))}
 
-            {results.length === 0 && !loading && (
+            {results.length === 0 && !loadingSearch && (
               <div style={{ padding: "8px", fontSize: "12px", color: "var(--text-secondary)" }}>
                 No users found
               </div>
@@ -232,7 +216,9 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
       {/* Conversations List */}
       <div style={{ marginTop: "8px" }}>
         {loadingChats && <div className="text-center pt-50">Loading chats...</div>}
-        {!loadingChats && conversations.length === 0 && <div className="text-center">No conversations yet</div>}
+        {!loadingChats && conversations.length === 0 && (
+          <div className="text-center">No conversations yet</div>
+        )}
 
         {conversations.map((conv: any) => {
           const otherUser = getOtherUser(conv, currentUserId);
@@ -246,7 +232,7 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
                 borderRadius: "10px",
                 marginBottom: "6px",
                 background: "var(--bg-surface)",
-                cursor: "pointer"
+                cursor: "pointer",
               }}
               className="flex flex-row gap-4 justify-content align-center"
             >
@@ -256,7 +242,15 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
 
               <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", flexGrow: 1 }}>
                 <strong>{otherUser.username}</strong>
-                <div style={{ fontSize: "13px", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div
+                  style={{
+                    fontSize: "13px",
+                    color: "var(--text-secondary)",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
                   {conv.lastMessage ?? "No messages yet"}
                 </div>
               </div>
@@ -268,7 +262,7 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
                     color: "white",
                     fontSize: "11px",
                     padding: "2px 6px",
-                    borderRadius: "999px"
+                    borderRadius: "999px",
                   }}
                 >
                   {conv.unreadCount}

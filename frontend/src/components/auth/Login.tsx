@@ -12,18 +12,70 @@ export default function Login({ onLogin }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim()) return;
+
+    console.group("========== LOGIN ==========");
+
+    console.log("Username:", username);
+
+    if (!username.trim()) {
+      console.warn("Username is empty");
+      console.groupEnd();
+      return;
+    }
 
     try {
+      console.log("Calling api.login()...");
+
       const user = await api.login(username);
+
+      console.log("api.login() returned:");
+      console.log(user);
+
       if (!user) {
+        console.warn("Login returned null/undefined");
         setFailedLoginAttempt(true);
+        console.groupEnd();
         return;
       }
+
+      console.log("Login successful");
+      console.log("User:");
+      console.table(user);
+
       setFailedLoginAttempt(false);
+
+      console.log("Calling onLogin()");
       onLogin(user);
-    } catch (error) {
+
+      console.log("onLogin() completed");
+    } catch (error: any) {
+      console.error("LOGIN FAILED");
+      console.error("Raw Error:", error);
+
+      console.log("message:", error?.message);
+      console.log("name:", error?.name);
+      console.log("code:", error?.code);
+
+      if (error?.response) {
+        console.log("HTTP Status:", error.response.status);
+        console.log("Response Headers:", error.response.headers);
+        console.log("Response Data:", error.response.data);
+      }
+
+      if (error?.request) {
+        console.log("Request:", error.request);
+      }
+
+      console.log("Full Error JSON:");
+      try {
+        console.log(JSON.stringify(error, null, 2));
+      } catch {
+        console.log("Could not stringify error.");
+      }
+
       setFailedLoginAttempt(true);
+    } finally {
+      console.groupEnd();
     }
   };
 
