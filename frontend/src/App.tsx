@@ -15,10 +15,13 @@ import { ActiveChat } from "./types/models";
 import { useAuth } from "./context/AuthContext";
 import { useSignalR } from "./context/SignalRContext";
 import { useMediaQuery } from "./hooks/useMediaQuery";
+import OnlineUsers from "./components/user/OnlineUsers";
+import MobileNav from "./components/user/MobileNav";
 
 function App() {
   const [showChat, setShowChat] = useState(false);
   const [activeChat, setActiveChat] = useState<ActiveChat | null>(null);
+  const [toggleMobileHome, setToggleMobileHome] = useState("inbox");
 
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const { user, login, logout } = useAuth();
@@ -55,13 +58,21 @@ function App() {
           title={<UserGreeting username={user.username} />}
           logOut={<LogoutButton onLogout={handleLogout} />}
         >
-          <ChatList
-            currentUserId={user.id}
-            onSelectChat={(chat) => {
-              setActiveChat(chat);
-              setShowChat(true);
-            }}
-          />
+          {!isDesktop && (
+            <MobileNav toggleMobileHome={toggleMobileHome} setToggleMobileHome={setToggleMobileHome} />
+          )}
+
+          {!isDesktop && toggleMobileHome === "online" && (<OnlineUsers currentUserId={user.id} />)}
+
+          {toggleMobileHome === "inbox" && (
+            <ChatList
+              currentUserId={user.id}
+              onSelectChat={(chat) => {
+                setActiveChat(chat);
+                setShowChat(true);
+              }}
+            />
+          )}
         </Sidebar>
       )}
 
@@ -86,12 +97,8 @@ function App() {
         </ChatSurface>
       )}
 
-      {/* RIGHT SIDEBAR */}
-      {isDesktop && (
-        <Sidebar title="Online Users">
-          {/* Online users list */}
-        </Sidebar>
-      )}
+      {/* Online Users Desktop Section */}
+      {isDesktop && (<OnlineUsers currentUserId={user.id} />)}
     </ChatLayout>
   );
 }

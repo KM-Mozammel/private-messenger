@@ -6,4 +6,5 @@ public interface IUserRepository
 {
     Task<User> GetOrCreateUserAsync(string username);
     Task<IEnumerable<User>> SearchUsersAsync(string? search, Guid currentUserId);
+    Task<IEnumerable<User>> GetUsersByIdsAsync(IEnumerable<Guid> ids);
 }

@@ -1,20 +1,52 @@
 ﻿using Microsoft.AspNetCore.SignalR;
+using System.Collections.Concurrent;
 
 namespace PrivateMessengerBackend.Hubs
 {
     public class ChatHub : Hub
     {
-        private static readonly Dictionary<Guid, string> OnlineUsers = new();
-        private static readonly Dictionary<Guid, List<string>> GroupUsers = new();
+        // 🔹 Use ConcurrentDictionary for thread-safe operations without manual locking
+        // Maps UserId -> List of Active ConnectionIDs
+        private static readonly ConcurrentDictionary<Guid, HashSet<string>> OnlineUsers = new();
+
+        // Maps ConversationId -> List of Active ConnectionIDs
+        private static readonly ConcurrentDictionary<Guid, HashSet<string>> GroupUsers = new();
 
         public override async Task OnConnectedAsync()
         {
-            var userId = Context.GetHttpContext()?.Request.Query["userId"];
+            var httpContext = Context.GetHttpContext();
+            var userIdStr = httpContext?.Request.Query["userId"].ToString();
+            var usernameStr = httpContext?.Request.Query["username"].ToString();
 
-            if (!string.IsNullOrEmpty(userId))
+            if (Guid.TryParse(userIdStr, out var userGuid))
             {
-                OnlineUsers[Guid.Parse(userId!)] = Context.ConnectionId;
-                await Clients.All.SendAsync("UserOnline", userId);
+                var isFirstConnection = false;
+
+                // Add connection ID to user's list of active connections
+                OnlineUsers.AddOrUpdate(
+                    userGuid,
+                    // If user is coming online for the first time
+                    _ =>
+                    {
+                        isFirstConnection = true;
+                        return new HashSet<string> { Context.ConnectionId };
+                    },
+                    // If user already has other active tabs/devices open
+                    (_, connections) =>
+                    {
+                        lock (connections)
+                        {
+                            connections.Add(Context.ConnectionId);
+                        }
+                        return connections;
+                    }
+                );
+
+                // 🔹 Only broadcast "UserOnline" if this is their FIRST active connection
+                if (isFirstConnection)
+                {
+                    await Clients.Others.SendAsync("UserOnline", userGuid.ToString(), usernameStr ?? "User");
+                }
             }
 
             await base.OnConnectedAsync();
@@ -22,24 +54,48 @@ namespace PrivateMessengerBackend.Hubs
 
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
-            var user = OnlineUsers.FirstOrDefault(x => x.Value == Context.ConnectionId);
+            Guid disconnectedUserId = Guid.Empty;
+            var isFullyDisconnected = false;
 
-            if (user.Key != Guid.Empty)
+            // 1. Remove connection ID from OnlineUsers
+            foreach (var (userId, connections) in OnlineUsers)
             {
-                OnlineUsers.Remove(user.Key);
-                await Clients.All.SendAsync("UserOffline", user.Key);
+                bool containsConnection;
+                lock (connections)
+                {
+                    containsConnection = connections.Remove(Context.ConnectionId);
+                    if (containsConnection && connections.Count == 0)
+                    {
+                        isFullyDisconnected = true;
+                    }
+                }
+
+                if (containsConnection)
+                {
+                    disconnectedUserId = userId;
+                    if (isFullyDisconnected)
+                    {
+                        OnlineUsers.TryRemove(userId, out _);
+                    }
+                    break;
+                }
             }
 
-            // গ্রুপ থেকেও রিমুভ করো
-            foreach (var group in GroupUsers.Keys.ToList())
+            // 🔹 Only broadcast "UserOffline" if ALL tabs/devices for this user disconnected
+            if (disconnectedUserId != Guid.Empty && isFullyDisconnected)
             {
-                if (GroupUsers[group].Contains(Context.ConnectionId))
-                {
-                    GroupUsers[group].Remove(Context.ConnectionId);
+                await Clients.All.SendAsync("UserOffline", disconnectedUserId.ToString());
+            }
 
-                    if (GroupUsers[group].Count == 0)
+            // 2. Cleanup Group connections
+            foreach (var (groupId, connections) in GroupUsers)
+            {
+                lock (connections)
+                {
+                    connections.Remove(Context.ConnectionId);
+                    if (connections.Count == 0)
                     {
-                        GroupUsers.Remove(group);
+                        GroupUsers.TryRemove(groupId, out _);
                     }
                 }
             }
@@ -52,28 +108,33 @@ namespace PrivateMessengerBackend.Hubs
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, conversationId.ToString());
 
-            if (!GroupUsers.ContainsKey(conversationId))
-            {
-                GroupUsers[conversationId] = new List<string>();
-            }
-
-            if (!GroupUsers[conversationId].Contains(Context.ConnectionId))
-            {
-                GroupUsers[conversationId].Add(Context.ConnectionId);
-            }
+            GroupUsers.AddOrUpdate(
+                conversationId,
+                _ => new HashSet<string> { Context.ConnectionId },
+                (_, connections) =>
+                {
+                    lock (connections)
+                    {
+                        connections.Add(Context.ConnectionId);
+                    }
+                    return connections;
+                }
+            );
         }
 
         public async Task LeaveConversation(Guid conversationId)
         {
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, conversationId.ToString());
 
-            if (GroupUsers.ContainsKey(conversationId))
+            if (GroupUsers.TryGetValue(conversationId, out var connections))
             {
-                GroupUsers[conversationId].Remove(Context.ConnectionId);
-
-                if (GroupUsers[conversationId].Count == 0)
+                lock (connections)
                 {
-                    GroupUsers.Remove(conversationId);
+                    connections.Remove(Context.ConnectionId);
+                    if (connections.Count == 0)
+                    {
+                        GroupUsers.TryRemove(conversationId, out _);
+                    }
                 }
             }
         }
@@ -87,19 +148,49 @@ namespace PrivateMessengerBackend.Hubs
         /*---------------------NOTIFICATIONS---------------------*/
         public async Task NotifyNewConversation(Guid receiverUserId, object conversationPayload)
         {
-            if (OnlineUsers.TryGetValue(receiverUserId, out var connectionId))
+            if (OnlineUsers.TryGetValue(receiverUserId, out var connections))
             {
-                await Clients.Client(connectionId).SendAsync("ConversationStarted", conversationPayload);
+                List<string> targetConnectionIds;
+                lock (connections)
+                {
+                    targetConnectionIds = connections.ToList();
+                }
+
+                // Send to ALL active devices/tabs of the receiver
+                await Clients.Clients(targetConnectionIds).SendAsync("ConversationStarted", conversationPayload);
             }
         }
 
         /*---------------------GETTERS---------------------*/
-        public static IReadOnlyCollection<Guid> GetOnlineUsers() => OnlineUsers.Keys;
-        public static IReadOnlyDictionary<Guid, List<string>> GetGroupUsers() => GroupUsers;
-        public static string? GetConnectionIdByUserId(Guid userId)
+        public static IReadOnlyCollection<Guid> GetOnlineUsers()
         {
-            OnlineUsers.TryGetValue(userId, out var connectionId);
-            return connectionId;
+            return OnlineUsers.Keys.ToList().AsReadOnly();
+        }
+
+        public static IReadOnlyDictionary<Guid, List<string>> GetGroupUsers()
+        {
+            return GroupUsers.ToDictionary(
+                kvp => kvp.Key,
+                kvp =>
+                {
+                    lock (kvp.Value)
+                    {
+                        return kvp.Value.ToList();
+                    }
+                }
+            );
+        }
+
+        public static List<string> GetConnectionIdsByUserId(Guid userId)
+        {
+            if (OnlineUsers.TryGetValue(userId, out var connections))
+            {
+                lock (connections)
+                {
+                    return connections.ToList();
+                }
+            }
+            return new List<string>();
         }
     }
 }

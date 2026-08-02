@@ -1,6 +1,4 @@
-
-const env = (import.meta as ImportMeta & { env?: { VITE_BASE_URL?: string } }).env;
-const BASE_URL = (env?.VITE_BASE_URL || "https://localhost:7024/api").replace(/\/$/, "");
+const BASE_URL = "http://192.168.0.195:5041/api";
 
 export const api = {
   login: async (username: string) => {
@@ -55,5 +53,11 @@ export const api = {
 
     if (!res.ok) throw new Error("Failed to start conversation");
     return res.json();
-  }
-};
+  },
+
+  fetchOnlineUsers: async () => {
+    const res = await fetch(`${BASE_URL}/users/online`);
+    if (!res.ok) throw new Error("Failed to fetch online users");
+    return res.json();
+  },
+}
