@@ -1,6 +1,8 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using PrivateMessenger.Application.Users.Queries.GetOnlineUsers;
 using PrivateMessenger.Application.Users.Queries.SearchUsers;
+using PrivateMessengerBackend.Hubs;
 
 namespace PrivateMessenger.Presentation.Controllers;
 
@@ -23,4 +25,18 @@ public class UserController : ControllerBase
 
         return Ok(users);
     }
+
+    [HttpGet("online")]
+    public async Task<IActionResult> GetOnlineUsers()
+    {
+        // Get online user IDs from your Hub/Tracker
+        var onlineUserIds = ChatHub.GetOnlineUsers();
+
+        // Pass IDs into the query
+        var query = new GetOnlineUsersQuery(onlineUserIds);
+        var onlineUsers = await _mediator.Send(query);
+
+        return Ok(onlineUsers);
+    }
+
 }

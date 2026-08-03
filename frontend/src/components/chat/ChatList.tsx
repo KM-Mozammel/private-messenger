@@ -1,7 +1,7 @@
 import type { ChatListProps, ConversationListItem, User } from "../../types/models";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../services/api";
-import { connectSignalR, onSignalREvent, offSignalREvent, joinConversation } from "../../services/signalR";
+import { useSignalR } from "../../context/SignalRContext";
 
 interface ConversationUpdatePayload {
   conversationId: string;
@@ -12,88 +12,133 @@ interface ConversationUpdatePayload {
 export default function ChatList({ onSelectChat, currentUserId }: ChatListProps & { currentUserId: string }) {
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<User[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loadingSearch, setLoadingSearch] = useState(false);
   const [conversations, setConversations] = useState<ConversationListItem[]>([]);
   const [loadingChats, setLoadingChats] = useState(false);
 
-  // Helper to fetch conversations from API (Initial load or fallback)
+  // State to track set of online user IDs (stored in lowercase for reliable comparison)
+  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
+
+  const { subscribe, joinConversation, isConnected } = useSignalR();
+
+  /* -------------------- INITIAL ONLINE USERS FETCH -------------------- */
+  useEffect(() => {
+    let isMounted = true;
+    const fetchOnlineUsers = async () => {
+      try {
+        const data: User[] = await api.fetchOnlineUsers();
+        if (isMounted && Array.isArray(data)) {
+          const ids = new Set(data.map((u) => u.id?.toLowerCase()).filter(Boolean));
+          setOnlineUserIds(ids);
+        }
+      } catch (err) {
+        console.error("Failed to fetch online users:", err);
+      }
+    };
+
+    fetchOnlineUsers();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  /* -------------------- REAL-TIME SIGNALR PRESENCE LISTENERS -------------------- */
+  useEffect(() => {
+    if (!isConnected) return;
+
+    const handleUserOnline = (onlineUserId: string) => {
+      if (!onlineUserId) return;
+      setOnlineUserIds((prev) => new Set(prev).add(onlineUserId.toLowerCase()));
+    };
+
+    const handleUserOffline = (offlineUserId: string) => {
+      if (!offlineUserId) return;
+      setOnlineUserIds((prev) => {
+        const next = new Set(prev);
+        next.delete(offlineUserId.toLowerCase());
+        return next;
+      });
+    };
+
+    // Subscribing to both casing variations for backend compatibility
+    const unsubs = [
+      subscribe("UserOnline", handleUserOnline),
+      subscribe("useronline", handleUserOnline),
+      subscribe("UserOffline", handleUserOffline),
+      subscribe("useroffline", handleUserOffline),
+    ];
+
+    return () => {
+      unsubs.forEach((unsub) => unsub?.());
+    };
+  }, [subscribe, isConnected]);
+
+  /* -------------------- FETCH CONVERSATIONS -------------------- */
   const loadConversations = useCallback(async () => {
     try {
+      setLoadingChats(true);
       const data = await api.getConversations(currentUserId);
       setConversations(data);
     } catch (err) {
       console.error("Failed to load conversations:", err);
+    } finally {
+      setLoadingChats(false);
     }
   }, [currentUserId]);
 
-  // 1. Initial Load & SignalR Connection Setup
+  // Initial fetch on mount / user change
   useEffect(() => {
-    if (!currentUserId) return;
-
-    let isMounted = true;
-
-    const initializeConnection = async () => {
-      setLoadingChats(true);
-      await connectSignalR(currentUserId);
-      if (isMounted) {
-        await loadConversations();
-        setLoadingChats(false);
-      }
-    };
-
-    initializeConnection();
-
-    return () => {
-      isMounted = false;
-    };
+    if (currentUserId) {
+      loadConversations();
+    }
   }, [currentUserId, loadConversations]);
 
-  // 2. In-Memory State Mutation on Real-Time SignalR Event
+  /* -------------------- REAL-TIME CONVERSATION UPDATES -------------------- */
   useEffect(() => {
     const handleConversationUpdate = (payload: ConversationUpdatePayload) => {
-      console.log("Real-time update payload received:", payload);
+      if (!payload?.conversationId) return;
+
+      const normalizedPayloadId = payload.conversationId.toLowerCase();
+      const normalizedSenderId = payload.senderId?.toLowerCase();
+      const normalizedCurrentUserId = currentUserId?.toLowerCase();
 
       setConversations((prevConversations) => {
         const existingIndex = prevConversations.findIndex(
-          (conv) => conv.conversationId === payload.conversationId
+          (conv) => conv.conversationId.toLowerCase() === normalizedPayloadId
         );
 
-        // If the conversation exists in local state, update and reorder it
         if (existingIndex !== -1) {
           const targetConv = prevConversations[existingIndex];
+          const isIncomingMessage = normalizedSenderId !== normalizedCurrentUserId;
 
           const updatedConv: ConversationListItem = {
             ...targetConv,
             lastMessage: payload.lastMessage,
-            // Increment unread count only if current user is the receiver
-            unreadCount:
-              payload.senderId !== currentUserId
-                ? (targetConv.unreadCount || 0) + 1
-                : targetConv.unreadCount
+            unreadCount: isIncomingMessage
+              ? (targetConv.unreadCount || 0) + 1
+              : targetConv.unreadCount,
           };
 
-          // Remove old instance and move updated conversation to top of list
           const remainingConvs = prevConversations.filter(
-            (conv) => conv.conversationId !== payload.conversationId
+            (conv) => conv.conversationId.toLowerCase() !== normalizedPayloadId
           );
 
           return [updatedConv, ...remainingConvs];
         }
 
-        // Fallback: If it's a completely new chat thread not present in list, fetch full list
-        loadConversations();
+        setTimeout(() => {
+          loadConversations();
+        }, 0);
+
         return prevConversations;
       });
     };
 
-    onSignalREvent("ConversationUpdated", handleConversationUpdate);
+    const unsubscribe = subscribe("ConversationUpdated", handleConversationUpdate);
+    return () => unsubscribe();
+  }, [currentUserId, loadConversations, subscribe]);
 
-    return () => {
-      offSignalREvent("ConversationUpdated", handleConversationUpdate);
-    };
-  }, [currentUserId, loadConversations]);
-
-  // 3. Search Autocomplete
+  /* -------------------- USER SEARCH AUTOCOMPLETE -------------------- */
   useEffect(() => {
     if (search.trim() === "") {
       setResults([]);
@@ -103,13 +148,13 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
     const controller = new AbortController();
     const timeout = setTimeout(async () => {
       try {
-        setLoading(true);
+        setLoadingSearch(true);
         const users = await api.searchUsers(search, currentUserId);
         setResults(users);
       } catch (err) {
         if (err instanceof Error) console.error(err.message);
       } finally {
-        setLoading(false);
+        setLoadingSearch(false);
       }
     }, 300);
 
@@ -119,41 +164,25 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
     };
   }, [search, currentUserId]);
 
-  // 4. Handle selecting / creating new conversation
-  const handleSelectUser = async (targetUser: User) => {
-    try {
-      const res = await api.startConversation(currentUserId, targetUser.id);
+  /* -------------------- HANDLERS -------------------- */
+  const handleSelectUser = (targetUser: User) => {
+    onSelectChat?.({
+      conversationId: "",
+      user: targetUser,
+    });
 
-      if (!res?.conversationId) {
-        console.error("No conversationId returned", res);
-        return;
-      }
-
-      joinConversation(res.conversationId);
-
-      onSelectChat?.({
-        conversationId: res.conversationId,
-        user: targetUser
-      });
-
-      setSearch("");
-      setResults([]);
-
-      // Fetch fresh list to reflect newly initiated thread
-      await loadConversations();
-    } catch (err) {
-      console.error("Failed to start/select conversation", err);
-    }
+    setSearch("");
+    setResults([]);
   };
 
-  // Clear unread count when opening a chat
   const handleSelectConversation = (conv: any, otherUser: any) => {
     joinConversation(conv.conversationId);
 
-    // Reset unread counter locally for active chat
     setConversations((prev) =>
       prev.map((c) =>
-        c.conversationId === conv.conversationId ? { ...c, unreadCount: 0 } : c
+        c.conversationId.toLowerCase() === conv.conversationId.toLowerCase()
+          ? { ...c, unreadCount: 0 }
+          : c
       )
     );
 
@@ -161,10 +190,20 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
   };
 
   const getOtherUser = (conv: any, currentUserId: string) => {
+    const normCurrentId = currentUserId?.toLowerCase();
     if (conv.participants && conv.participants.length > 0) {
-      return conv.participants.find((p: any) => p.id !== currentUserId) || { username: "Unknown" };
+      return (
+        conv.participants.find((p: any) => p.id?.toLowerCase() !== normCurrentId) || {
+          username: "Unknown",
+        }
+      );
     }
     return { id: conv.userId, username: conv.username };
+  };
+
+  const isUserOnline = (userId?: string) => {
+    if (!userId) return false;
+    return onlineUserIds.has(userId.toLowerCase());
   };
 
   return (
@@ -181,11 +220,11 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
             marginBottom: "12px",
             borderRadius: "8px",
             border: "1px solid var(--border)",
-            background: "var(--bg-main)"
+            background: "var(--bg-main)",
           }}
         />
 
-        {(loading || results.length > 0) && (
+        {(loadingSearch || results.length > 0) && (
           <div
             style={{
               position: "absolute",
@@ -198,29 +237,52 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
               border: "1px solid var(--border)",
               borderRadius: "8px",
               boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-              padding: "4px 0"
+              padding: "4px 0",
             }}
           >
-            {loading && <div style={{ padding: "8px", fontSize: "12px" }}>Searching...</div>}
+            {loadingSearch && <div style={{ padding: "8px", fontSize: "12px" }}>Searching...</div>}
 
-            {results.map((user) => (
-              <div
-                key={user.id}
-                onClick={() => handleSelectUser(user)}
-                style={{
-                  padding: "8px 12px",
-                  cursor: "pointer",
-                  borderBottom: "1px solid var(--border)",
-                  background: "var(--bg-surface)"
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "var(--bg-surface)")}
-              >
-                {user.username}
-              </div>
-            ))}
+            {results.map((user) => {
+              const online = isUserOnline(user.id);
 
-            {results.length === 0 && !loading && (
+              return (
+                <div
+                  key={user.id}
+                  onClick={() => handleSelectUser(user)}
+                  className="flex items-center justify-between"
+                  style={{
+                    padding: "8px 12px",
+                    cursor: "pointer",
+                    borderBottom: "1px solid var(--border)",
+                    background: "var(--bg-surface)",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "var(--bg-surface)")}
+                >
+                  <div className="flex items-center gap-2">
+                    {/* Avatar with active blue indicator dot */}
+                    <div className="relative inline-block">
+                      <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold">
+                        {user.username ? user.username.charAt(0).toUpperCase() : "?"}
+                      </div>
+                      {online && (
+                        <span
+                          className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-blue-500 ring-2 ring-white"
+                          title="Online"
+                        />
+                      )}
+                    </div>
+                    <span>{user.username}</span>
+                  </div>
+
+                  {online && (
+                    <span className="text-xs text-blue-500 font-medium">Active</span>
+                  )}
+                </div>
+              );
+            })}
+
+            {results.length === 0 && !loadingSearch && (
               <div style={{ padding: "8px", fontSize: "12px", color: "var(--text-secondary)" }}>
                 No users found
               </div>
@@ -232,10 +294,13 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
       {/* Conversations List */}
       <div style={{ marginTop: "8px" }}>
         {loadingChats && <div className="text-center pt-50">Loading chats...</div>}
-        {!loadingChats && conversations.length === 0 && <div className="text-center">No conversations yet</div>}
+        {!loadingChats && conversations.length === 0 && (
+          <div className="text-center">No conversations yet</div>
+        )}
 
         {conversations.map((conv: any) => {
           const otherUser = getOtherUser(conv, currentUserId);
+          const online = isUserOnline(otherUser.id);
 
           return (
             <div
@@ -246,17 +311,36 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
                 borderRadius: "10px",
                 marginBottom: "6px",
                 background: "var(--bg-surface)",
-                cursor: "pointer"
+                cursor: "pointer",
               }}
-              className="flex flex-row gap-4 justify-content align-center"
+              className="flex flex-row gap-4 justify-between items-center"
             >
-              <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
-                {otherUser.username ? otherUser.username.charAt(0).toUpperCase() : "?"}
+              <div className="relative inline-block shrink-0">
+                <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
+                  {otherUser.username ? otherUser.username.charAt(0).toUpperCase() : "?"}
+                </div>
+                {/* Active Blue Dot Badge */}
+                {online && (
+                  <span
+                    className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-blue-500 ring-2 ring-white"
+                    title="Online"
+                  />
+                )}
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", flexGrow: 1 }}>
-                <strong>{otherUser.username}</strong>
-                <div style={{ fontSize: "13px", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div className="flex items-center gap-2">
+                  <strong>{otherUser.username}</strong>
+                </div>
+                <div
+                  style={{
+                    fontSize: "13px",
+                    color: "var(--text-secondary)",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
                   {conv.lastMessage ?? "No messages yet"}
                 </div>
               </div>
@@ -268,7 +352,7 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
                     color: "white",
                     fontSize: "11px",
                     padding: "2px 6px",
-                    borderRadius: "999px"
+                    borderRadius: "999px",
                   }}
                 >
                   {conv.unreadCount}

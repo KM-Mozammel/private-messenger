@@ -17,9 +17,10 @@ builder.Host.UseSerilog((ctx, lc) => lc
 );
 
 builder.Services.AddControllers();
-builder.Services.AddSignalR();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.AddSignalR();
 
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
@@ -30,28 +31,37 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins(
             "http://localhost:5173",
-            "http://192.168.0.200:5173",
             "https://mk-private-messenger.vercel.app",
-            "http://192.168.0.198:5173"
+            "http://192.168.0.195:5173",
+            "https://192.168.0.195:5173"
         )
+        .SetIsOriginAllowed(_ => true)
         .AllowAnyHeader()
         .AllowAnyMethod()
         .AllowCredentials();
     });
 });
 
+builder.WebHost.UseUrls(
+    "http://0.0.0.0:5041",
+    "https://0.0.0.0:7024"
+);
+
 var app = builder.Build();
 
-//if (app.Environment.IsDevelopment())
-//{
+if (app.Environment.IsDevelopment())
+{
     app.UseSwagger();
     app.UseSwaggerUI();
-//}
+}
 
+app.UseRouting();
 app.UseCors("AllowReact");
-app.UseHttpsRedirection();
+
+//app.UseHttpsRedirection();
+//app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapHub<ChatHub>("hubs/chat");
 app.MapControllers();
+app.MapHub<ChatHub>("hubs/chat");
 app.Run();

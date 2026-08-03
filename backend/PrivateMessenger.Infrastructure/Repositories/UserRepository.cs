@@ -40,6 +40,20 @@ public class UserRepository : IUserRepository
         return newUser;
     }
 
+    public async Task<IEnumerable<User>> GetUsersByIdsAsync(IEnumerable<Guid> ids)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+
+        var sql = @"
+                SELECT * FROM Users
+                WHERE Id IN @Ids
+            ";
+
+        return await connection.QueryAsync<User>(
+            sql,
+            new { Ids = ids });
+    }
+
     public async Task<IEnumerable<User>> SearchUsersAsync(string? search, Guid currentUserId)
     {
         using var connection = _connectionFactory.CreateConnection();

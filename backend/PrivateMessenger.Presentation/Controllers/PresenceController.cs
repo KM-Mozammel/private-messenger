@@ -12,5 +12,12 @@ namespace PrivateMessengerBackend.Controllers
         {
             return Ok(ChatHub.GetOnlineUsers());
         }
+
+        [HttpGet("groups")]
+        public IActionResult GetGroups()
+        {
+            return Ok(ChatHub.GetGroupUsers());
+        }
+
     }
 }

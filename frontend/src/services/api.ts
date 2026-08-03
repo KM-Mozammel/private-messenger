@@ -1,5 +1,3 @@
-
-// const BASE_URL = "https://localhost:7024/api";
 const BASE_URL = "https://www.mk-private-messenger.somee.com/api";
 
 export const api = {
@@ -24,11 +22,11 @@ export const api = {
     return res.json();
   },
 
-  sendMessage: async ({ conversationId, senderId, content }: { conversationId: string; senderId: string; content: string }) => {
+  sendMessage: async ({ conversationId, senderId, receiverId, content }: { conversationId: string; senderId: string; receiverId: string; content: string }) => {
     const res = await fetch(`${BASE_URL}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ConversationId: conversationId, SenderId: senderId, Content: content })
+      body: JSON.stringify({ ConversationId: conversationId, SenderId: senderId, ReceiverId: receiverId, Content: content })
     });
 
     if (!res.ok) throw new Error("Failed to send message");
@@ -55,5 +53,11 @@ export const api = {
 
     if (!res.ok) throw new Error("Failed to start conversation");
     return res.json();
-  }
-};
+  },
+
+  fetchOnlineUsers: async () => {
+    const res = await fetch(`${BASE_URL}/users/online`);
+    if (!res.ok) throw new Error("Failed to fetch online users");
+    return res.json();
+  },
+}

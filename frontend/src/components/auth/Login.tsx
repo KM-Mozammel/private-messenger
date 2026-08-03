@@ -12,17 +12,30 @@ export default function Login({ onLogin }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!username.trim()) return;
 
     try {
       const user = await api.login(username);
+
       if (!user) {
         setFailedLoginAttempt(true);
         return;
       }
+
       setFailedLoginAttempt(false);
       onLogin(user);
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.response) {
+        console.log("HTTP Status:", error.response.status);
+        console.log("Response Headers:", error.response.headers);
+        console.log("Response Data:", error.response.data);
+      }
+
+      if (error?.request) {
+        console.log("Request:", error.request);
+      }
+
       setFailedLoginAttempt(true);
     }
   };
