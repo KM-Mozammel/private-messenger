@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { api } from "../../services/api"; // your API helper
+import { useState, useRef, useEffect, useCallback } from "react";
+import { api } from "../../services/api";
 import type { ActiveChat, User } from "../../types/models";
 import { useSignalR } from "../../context/SignalRContext";
 
@@ -17,10 +17,65 @@ export default function MessageInput({
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const isCreatingConversation = useRef(false);
-  const { joinConversation } = useSignalR();
+
+  const { joinConversation, invoke } = useSignalR();
+
+  // Refs to manage typing debounce timeouts
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isTypingRef = useRef(false);
+
+  // Function to clear typing status explicitly
+  const sendTypingSignal = useCallback(
+    (isTyping: boolean) => {
+      if (!activeChat?.conversationId) return;
+      isTypingRef.current = isTyping;
+      invoke?.("SendTypingIndicator", activeChat.conversationId, currentUser.username, isTyping);
+    },
+    [activeChat?.conversationId, currentUser.username, invoke]
+  );
+
+  // Clean up typing state if conversation changes or component unmounts
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (isTypingRef.current) {
+        sendTypingSignal(false);
+      }
+    };
+  }, [activeChat?.conversationId, sendTypingSignal]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setMessage(value);
+
+    if (!activeChat.conversationId) return;
+
+    // 1. Send "isTyping: true" immediately if not already marked as typing
+    if (!isTypingRef.current && value.trim().length > 0) {
+      sendTypingSignal(true);
+    }
+
+    // 2. Clear existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    // 3. Set a timeout to send "isTyping: false" after 2 seconds of inactivity
+    typingTimeoutRef.current = setTimeout(() => {
+      if (isTypingRef.current) {
+        sendTypingSignal(false);
+      }
+    }, 2000);
+  };
 
   const sendMessage = async () => {
     if (!message.trim() || sending || isCreatingConversation.current) return;
+
+    // Immediately stop typing indicator when user hits send
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    if (isTypingRef.current) {
+      sendTypingSignal(false);
+    }
 
     setSending(true);
 
@@ -79,7 +134,7 @@ export default function MessageInput({
 
       <input
         value={message}
-        onChange={(e) => setMessage(e.target.value)}
+        onChange={handleInputChange}
         onKeyDown={handleKeyPress}
         placeholder="Type a message..."
         disabled={sending}

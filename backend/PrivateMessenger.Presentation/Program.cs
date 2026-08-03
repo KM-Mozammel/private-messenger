@@ -42,23 +42,23 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.WebHost.UseUrls(
-    "http://0.0.0.0:5041",
-    "https://0.0.0.0:7024"
-);
+//builder.WebHost.UseUrls(
+//    "http://0.0.0.0:5041",
+//    "https://0.0.0.0:7024"
+//);
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
+//if (app.Environment.IsDevelopment())
+//{
     app.UseSwagger();
     app.UseSwaggerUI();
-}
+//}
 
 app.UseRouting();
 app.UseCors("AllowReact");
 
-//app.UseHttpsRedirection();
+app.UseHttpsRedirection();
 //app.UseAuthentication();
 app.UseAuthorization();
 

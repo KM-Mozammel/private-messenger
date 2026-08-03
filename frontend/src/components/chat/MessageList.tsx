@@ -3,20 +3,21 @@ import type { MessageListProps, Message } from "../../types/models";
 import { useEffect, useState, useRef } from "react";
 import { api } from "../../services/api";
 import { useSignalR } from "../../context/SignalRContext";
+import { useTypingIndicator } from "../../hooks/useTypingIndicator"; // <-- Import hook
 
 export default function MessageList({ activeChat, currentUser }: MessageListProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
-
   const { subscribe } = useSignalR();
+  const isTyping = useTypingIndicator(activeChat?.conversationId);
 
   /* -------------------- SCROLL TO BOTTOM -------------------- */
   useEffect(() => {
     if (bottomRef.current) {
       bottomRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages]);
+  }, [messages, isTyping]); // Scroll down when typing indicator appears too
 
   /* -------------------- FETCH INITIAL MESSAGES -------------------- */
   useEffect(() => {
@@ -28,8 +29,8 @@ export default function MessageList({ activeChat, currentUser }: MessageListProp
     setLoading(true);
 
     api.getMessages(activeChat.conversationId).then((data: Message[]) => {
-        setMessages(data);
-      }).catch(console.error).finally(() => setLoading(false));
+      setMessages(data);
+    }).catch(console.error).finally(() => setLoading(false));
   }, [activeChat?.conversationId]);
 
   /* -------------------- REAL-TIME SIGNALR SUBSCRIPTION -------------------- */
@@ -39,14 +40,12 @@ export default function MessageList({ activeChat, currentUser }: MessageListProp
     const handleReceiveMessage = (message: Message) => {
       if (message.conversationId === activeChat.conversationId) {
         setMessages((prev) => {
-          // Guard against duplicate message keys if the API + SignalR race
           if (prev.some((m) => m.id === message.id)) return prev;
           return [...prev, message];
         });
       }
     };
 
-    // Subscribes and automatically returns the cleanup function
     const unsubscribe = subscribe("ReceiveMessage", handleReceiveMessage);
     return () => unsubscribe();
   }, [activeChat?.conversationId, subscribe]);
@@ -79,6 +78,15 @@ export default function MessageList({ activeChat, currentUser }: MessageListProp
           })}
         />
       ))}
+
+      {/* Typing Indicator Bubble at bottom of message list */}
+      {isTyping && (
+        <div className="flex items-center gap-2 my-2 text-xs text-[var(--text-secondary)] italic animate-pulse">
+          <div className="bg-[var(--bg-surface)] px-3 py-2 rounded-xl border border-[var(--border)]">
+            typing...
+          </div>
+        </div>
+      )}
 
       <div ref={bottomRef} />
     </div>
