@@ -167,6 +167,16 @@ namespace PrivateMessengerBackend.Hubs
             }
         }
 
+        public async Task SendTypingIndicator(string conversationId, string username, bool isTyping)
+        {
+            await Clients.OthersInGroup(conversationId).SendAsync("ReceiveTypingIndicator", new
+            {
+                ConversationId = conversationId,
+                Username = username,
+                IsTyping = isTyping
+            });
+        }
+
         /*--------------------- GETTERS & HELPERS ---------------------*/
 
         public static IReadOnlyCollection<Guid> GetOnlineUsers()

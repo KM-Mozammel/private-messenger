@@ -2,6 +2,7 @@ import type { ChatListProps, ConversationListItem, User } from "../../types/mode
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../services/api";
 import { useSignalR } from "../../context/SignalRContext";
+import { useTypingIndicator } from "../../hooks/useTypingIndicator"; // <-- Import hook
 
 interface ConversationUpdatePayload {
   conversationId: string;
@@ -16,8 +17,11 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
   const [conversations, setConversations] = useState<ConversationListItem[]>([]);
   const [loadingChats, setLoadingChats] = useState(false);
 
-  // State to track set of online user IDs (stored in lowercase for reliable comparison)
+  // State to track set of online user IDs
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
+
+  // Reuse the typing indicator hook for all conversations!
+  const typingConversations = useTypingIndicator();
 
   const { subscribe, joinConversation, isConnected } = useSignalR();
 
@@ -60,7 +64,6 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
       });
     };
 
-    // Subscribing to both casing variations for backend compatibility
     const unsubs = [
       subscribe("UserOnline", handleUserOnline),
       subscribe("useronline", handleUserOnline),
@@ -86,7 +89,6 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
     }
   }, [currentUserId]);
 
-  // Initial fetch on mount / user change
   useEffect(() => {
     if (currentUserId) {
       loadConversations();
@@ -260,7 +262,6 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
                   onMouseLeave={(e) => (e.currentTarget.style.background = "var(--bg-surface)")}
                 >
                   <div className="flex items-center gap-2">
-                    {/* Avatar with active blue indicator dot */}
                     <div className="relative inline-block">
                       <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold">
                         {user.username ? user.username.charAt(0).toUpperCase() : "?"}
@@ -301,6 +302,7 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
         {conversations.map((conv: any) => {
           const otherUser = getOtherUser(conv, currentUserId);
           const online = isUserOnline(otherUser.id);
+          const isTyping = typingConversations[conv.conversationId?.toLowerCase()] || false;
 
           return (
             <div
@@ -319,7 +321,6 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
                 <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
                   {otherUser.username ? otherUser.username.charAt(0).toUpperCase() : "?"}
                 </div>
-                {/* Active Blue Dot Badge */}
                 {online && (
                   <span
                     className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-blue-500 ring-2 ring-white"
@@ -328,20 +329,21 @@ export default function ChatList({ onSelectChat, currentUserId }: ChatListProps 
                 )}
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", flexGrow: 1 }}>
+              <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", flexGrow: 1, minWidth: 0 }}>
                 <div className="flex items-center gap-2">
-                  <strong>{otherUser.username}</strong>
+                  <strong className="truncate">{otherUser.username}</strong>
                 </div>
                 <div
                   style={{
                     fontSize: "13px",
-                    color: "var(--text-secondary)",
+                    color: isTyping ? "var(--accent)" : "var(--text-secondary)",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
                   }}
+                  className={isTyping ? "italic animate-pulse" : ""}
                 >
-                  {conv.lastMessage ?? "No messages yet"}
+                  {isTyping ? "typing..." : (conv.lastMessage ?? "No messages yet")}
                 </div>
               </div>
 

@@ -56,7 +56,7 @@ export default function Login({ onLogin }: Props) {
           </div>
 
           <h1 className="text-2xl font-semibold text-center text-gray-900 dark:text-gray-100">
-            Private Login
+            Login
           </h1>
         </div>
 
