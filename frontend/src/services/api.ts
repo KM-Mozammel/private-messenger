@@ -1,5 +1,5 @@
-// const BASE_URL = "https://www.mk-private-messenger.somee.com/api";
-const BASE_URL = "http://localhost:5041/api";
+const BASE_URL = "https://www.mk-private-messenger.somee.com/api";
+// const BASE_URL = "http://localhost:5041/api";
 
 export const api = {
   login: async (username: string) => {
