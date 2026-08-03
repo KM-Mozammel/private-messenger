@@ -3,7 +3,7 @@ import * as signalR from "@microsoft/signalr";
 import { useAuth } from "./AuthContext";
 import { SignalRContext } from "./SignalRContext";
 
-const SIGNALR_URL = "http://192.168.0.195:5041/hubs/chat";
+const SIGNALR_URL = "https://www.mk-private-messenger.somee.com/hubs/chat";
 
 export const SignalRProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();

@@ -34,8 +34,11 @@ public class MessageController : ControllerBase
         var command = new SendMessageCommand(request.ConversationId, request.SenderId, request.Content);
         var message = await _mediator.Send(command);
 
-        await _hub.Clients.Group(request.ConversationId.ToString()).SendAsync("ReceiveMessage", message);
+        // 1. Broadcast to active chat room
+        await _hub.Clients.Group(request.ConversationId.ToString().ToLower())
+            .SendAsync("ReceiveMessage", message);
 
+        // 2. Chat list update payload
         var updatePayload = new
         {
             conversationId = request.ConversationId,
@@ -44,8 +47,26 @@ public class MessageController : ControllerBase
             updatedAt = DateTime.UtcNow
         };
 
-        await _hub.Clients.User(request.ReceiverId.ToString()).SendAsync("ConversationUpdated", updatePayload);
-        await _hub.Clients.User(request.SenderId.ToString()).SendAsync("ConversationUpdated", updatePayload);
+        // 3. TARGETED ALERT NOTIFICATION PAYLOAD (For App.tsx)
+        var notificationPayload = new
+        {
+            conversationId = request.ConversationId,
+            senderId = request.SenderId,
+            receiverId = request.ReceiverId,
+            content = request.Content
+        };
+
+        // 4. Convert GUIDs to lowercase to target user personal groups
+        string receiverGroup = $"user_{request.ReceiverId.ToString().ToLower()}";
+        string senderGroup = $"user_{request.SenderId.ToString().ToLower()}";
+
+        // A. Update ChatLists for both users
+        await _hub.Clients.Group(receiverGroup).SendAsync("ConversationUpdated", updatePayload);
+        await _hub.Clients.Group(senderGroup).SendAsync("ConversationUpdated", updatePayload);
+
+        // B. Send targeted alert notification ONLY to Sender and Receiver personal groups
+        await _hub.Clients.Group(receiverGroup).SendAsync("ReceiveNotification", notificationPayload);
+        await _hub.Clients.Group(senderGroup).SendAsync("ReceiveNotification", notificationPayload);
 
         return Ok(message);
     }

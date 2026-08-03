@@ -9,11 +9,17 @@ interface User {
   createdAt?: string;
 }
 
-interface OnlineUsersProps {
-  currentUserId: string;
+interface SelectedChatPayload {
+  conversationId: string;
+  user: User;
 }
 
-const OnlineUsers: React.FC<OnlineUsersProps> = ({ currentUserId }) => {
+interface OnlineUsersProps {
+  currentUserId: string;
+  onSelectChat?: (chat: SelectedChatPayload) => void;
+}
+
+const OnlineUsers: React.FC<OnlineUsersProps> = ({ currentUserId, onSelectChat }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +45,7 @@ const OnlineUsers: React.FC<OnlineUsersProps> = ({ currentUserId }) => {
           setUsers(sanitizedUsers);
         }
       } catch (err: any) {
-        if (isMounted) setError(err.message);
+        if (isMounted) setError(err?.message || "Failed to load online users");
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -66,7 +72,7 @@ const OnlineUsers: React.FC<OnlineUsersProps> = ({ currentUserId }) => {
       setUsers((prev) => {
         const existingIndex = prev.findIndex((u) => u.id === onlineUserId);
 
-        // If user already exists in state, update their name if it was previously default "User"
+        // If user exists, update their username if it was previously fallback "User"
         if (existingIndex !== -1) {
           if (prev[existingIndex].username === "User" && validUsername !== "User") {
             const updatedUsers = [...prev];
@@ -79,7 +85,7 @@ const OnlineUsers: React.FC<OnlineUsersProps> = ({ currentUserId }) => {
           return prev;
         }
 
-        // Add brand new online user
+        // Add new online user
         const newUser: User = {
           id: onlineUserId,
           username: validUsername,
@@ -93,55 +99,75 @@ const OnlineUsers: React.FC<OnlineUsersProps> = ({ currentUserId }) => {
       setUsers((prev) => prev.filter((u) => u.id !== offlineUserId));
     };
 
-    // Subscribing to both cases for compatibility
-    const unsubOnlineUpper = subscribe("UserOnline", handleUserOnline);
-    const unsubOnlineLower = subscribe("useronline", handleUserOnline);
-
-    const unsubOfflineUpper = subscribe("UserOffline", handleUserOffline);
-    const unsubOfflineLower = subscribe("useroffline", handleUserOffline);
+    // Subscribing to both casing styles for backend event compatibility
+    const unsubs = [
+      subscribe("UserOnline", handleUserOnline),
+      subscribe("useronline", handleUserOnline),
+      subscribe("UserOffline", handleUserOffline),
+      subscribe("useroffline", handleUserOffline),
+    ];
 
     return () => {
-      unsubOnlineUpper?.();
-      unsubOnlineLower?.();
-      unsubOfflineUpper?.();
-      unsubOfflineLower?.();
+      unsubs.forEach((unsub) => unsub?.());
     };
   }, [currentUserId, subscribe, isConnected]);
 
-  if (loading) return <p className="text-gray-500 text-sm">Loading online users...</p>;
-  if (error) return <p className="text-red-500 text-sm">Error: {error}</p>;
-
-  // Safe client-side search filter
+  // Client-side search filter
   const filteredUsers = users.filter((user) => {
     const name = typeof user.username === "string" ? user.username : "";
     return name.toLowerCase().includes(search.toLowerCase());
   });
 
+  const handleSelectUser = (targetUser: User) => {
+    // alert(JSON.stringify(targetUser));
+    onSelectChat?.({
+      conversationId: "",
+      user: targetUser,
+    });
+
+    setSearch("");
+  };
+
+  if (loading) return <p className="text-gray-500 text-sm p-3">Loading online users...</p>;
+  if (error) return <p className="text-red-500 text-sm p-3">Error: {error}</p>;
+
   return (
-    <div className="shadow-md rounded-lg p-3">
+    <div className="shadow-md rounded-lg p-3 bg-white">
       {isDesktop && <h2 className="text-lg font-semibold text-gray-800 mb-3">Online Users</h2>}
+
       <input
         type="text"
         placeholder="Search online users..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        className="w-full p-2 border rounded-md mb-3"
+        className="w-full p-2 border rounded-md mb-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
 
       {filteredUsers.length > 0 ? (
-        <ul className="space-y-2">
+        <ul className="space-y-2 max-h-[70vh] overflow-y-auto">
           {filteredUsers.map((user) => {
             const displayName = typeof user.username === "string" ? user.username : "User";
             return (
               <li
                 key={user.id}
-                className="flex items-center bg-gray-50 hover:bg-gray-100 p-2 rounded-md transition"
+                role="button"
+                tabIndex={0}
+                className="flex items-center bg-gray-50 hover:bg-gray-100 p-2 rounded-md transition cursor-pointer"
+                onClick={(e) => {
+                  handleSelectUser(user);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleSelectUser(user);
+                  }
+                }}
               >
-                <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold mr-3">
+                <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold mr-3 shrink-0">
                   {displayName.charAt(0).toUpperCase()}
                 </div>
-                <span className="flex-1 text-gray-800 font-medium">{displayName}</span>
-                <span className="flex items-center text-xs text-green-600 font-semibold">
+                <span className="flex-1 text-gray-800 font-medium truncate">{displayName}</span>
+                <span className="flex items-center text-xs text-green-600 font-semibold shrink-0 ml-2">
                   <span className="mr-1">●</span> Online
                 </span>
               </li>

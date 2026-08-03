@@ -25,11 +25,32 @@ function App() {
 
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const { user, login, logout } = useAuth();
-  const { isConnected, joinConversation, leaveConversation } = useSignalR();
+  const { isConnected, joinConversation, leaveConversation, subscribe } = useSignalR();
+
+  /* ------------------ STEP 2: GLOBAL NOTIFICATION LISTENER ------------------ */
+  useEffect(() => {
+    if (!isConnected || !user) return;
+
+    // Listen for targeted notification events sent from backend
+    const unsubscribe = subscribe("ReceiveNotification", (notificationPayload: any) => {
+      const { senderId, receiverId, senderUsername, content } = notificationPayload;
+
+      // Ensure only sender or receiver handle this
+      // if (user.id === senderId) {
+      //   alert(`Message sent to ${notificationPayload.receiverUsername || "user"}: "${content}"`);
+      // } else if (user.id === receiverId) {
+      //   alert(`New message from ${senderUsername || "a user"}: "${content}"`);
+      // }
+    });
+
+    return () => {
+      unsubscribe?.();
+    };
+  }, [isConnected, user, subscribe]);
 
   /* Join/Leave SignalR Conversation Group */
   useEffect(() => {
-    if (!activeChat || !isConnected) return;
+    if (!activeChat || !activeChat.conversationId || !isConnected) return;
 
     joinConversation(activeChat.conversationId);
 
@@ -62,7 +83,15 @@ function App() {
             <MobileNav toggleMobileHome={toggleMobileHome} setToggleMobileHome={setToggleMobileHome} />
           )}
 
-          {!isDesktop && toggleMobileHome === "online" && (<OnlineUsers currentUserId={user.id} />)}
+          {!isDesktop && toggleMobileHome === "online" && (
+            <OnlineUsers
+              onSelectChat={(chat) => {
+                setActiveChat(chat);
+                setShowChat(true);
+              }}
+              currentUserId={user.id}
+            />
+          )}
 
           {toggleMobileHome === "inbox" && (
             <ChatList
@@ -87,7 +116,9 @@ function App() {
           {activeChat ? (
             <>
               <MessageList activeChat={activeChat} currentUser={user} />
-              <MessageInput activeChat={activeChat} currentUser={user} />
+              <MessageInput activeChat={activeChat} currentUser={user} onConversationCreated={(newConvId) => {
+                setActiveChat((prev) => prev ? { ...prev, conversationId: newConvId } : null);
+              }} />
             </>
           ) : (
             <div style={{ padding: 20, color: "var(--text-secondary)", textAlign: "center" }}>
@@ -98,7 +129,13 @@ function App() {
       )}
 
       {/* Online Users Desktop Section */}
-      {isDesktop && (<OnlineUsers currentUserId={user.id} />)}
+      {isDesktop && (
+        <OnlineUsers
+          onSelectChat={(chat) => {
+            setActiveChat(chat);
+            setShowChat(true);
+          }}
+          currentUserId={user.id} />)}
     </ChatLayout>
   );
 }

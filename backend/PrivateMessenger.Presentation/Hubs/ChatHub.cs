@@ -5,8 +5,7 @@ namespace PrivateMessengerBackend.Hubs
 {
     public class ChatHub : Hub
     {
-        // 🔹 Use ConcurrentDictionary for thread-safe operations without manual locking
-        // Maps UserId -> List of Active ConnectionIDs
+        // 🔹 Maps UserId -> List of Active ConnectionIDs
         private static readonly ConcurrentDictionary<Guid, HashSet<string>> OnlineUsers = new();
 
         // Maps ConversationId -> List of Active ConnectionIDs
@@ -25,13 +24,11 @@ namespace PrivateMessengerBackend.Hubs
                 // Add connection ID to user's list of active connections
                 OnlineUsers.AddOrUpdate(
                     userGuid,
-                    // If user is coming online for the first time
                     _ =>
                     {
                         isFirstConnection = true;
                         return new HashSet<string> { Context.ConnectionId };
                     },
-                    // If user already has other active tabs/devices open
                     (_, connections) =>
                     {
                         lock (connections)
@@ -42,7 +39,10 @@ namespace PrivateMessengerBackend.Hubs
                     }
                 );
 
-                // 🔹 Only broadcast "UserOnline" if this is their FIRST active connection
+                // 🔹 Convert GUID to lowercase to guarantee exact string match with MessageController
+                await Groups.AddToGroupAsync(Context.ConnectionId, $"user_{userGuid.ToString().ToLower()}");
+
+                // 🔹 Broadcast "UserOnline" only on FIRST active connection
                 if (isFirstConnection)
                 {
                     await Clients.Others.SendAsync("UserOnline", userGuid.ToString(), usernameStr ?? "User");
@@ -81,7 +81,13 @@ namespace PrivateMessengerBackend.Hubs
                 }
             }
 
-            // 🔹 Only broadcast "UserOffline" if ALL tabs/devices for this user disconnected
+            // Remove from personal user group
+            if (disconnectedUserId != Guid.Empty)
+            {
+                await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"user_{disconnectedUserId.ToString().ToLower()}");
+            }
+
+            // 🔹 Broadcast "UserOffline" if ALL tabs/devices disconnected
             if (disconnectedUserId != Guid.Empty && isFullyDisconnected)
             {
                 await Clients.All.SendAsync("UserOffline", disconnectedUserId.ToString());
@@ -103,10 +109,11 @@ namespace PrivateMessengerBackend.Hubs
             await base.OnDisconnectedAsync(exception);
         }
 
-        /*---------------------GROUPS---------------------*/
+        /*--------------------- GROUPS / CONVERSATIONS ---------------------*/
+
         public async Task JoinConversation(Guid conversationId)
         {
-            await Groups.AddToGroupAsync(Context.ConnectionId, conversationId.ToString());
+            await Groups.AddToGroupAsync(Context.ConnectionId, conversationId.ToString().ToLower());
 
             GroupUsers.AddOrUpdate(
                 conversationId,
@@ -124,7 +131,7 @@ namespace PrivateMessengerBackend.Hubs
 
         public async Task LeaveConversation(Guid conversationId)
         {
-            await Groups.RemoveFromGroupAsync(Context.ConnectionId, conversationId.ToString());
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, conversationId.ToString().ToLower());
 
             if (GroupUsers.TryGetValue(conversationId, out var connections))
             {
@@ -139,29 +146,29 @@ namespace PrivateMessengerBackend.Hubs
             }
         }
 
-        /*---------------------Messaging---------------------*/
-        public async Task BrodcastMessage(Guid conversationId, object message)
+        /*--------------------- MESSAGING ---------------------*/
+
+        public async Task BroadcastMessage(Guid conversationId, object message)
         {
-            await Clients.Group(conversationId.ToString()).SendAsync("ReceiveMessage", message);
+            await Clients.Group(conversationId.ToString().ToLower()).SendAsync("ReceiveMessage", message);
         }
 
-        /*---------------------NOTIFICATIONS---------------------*/
-        public async Task NotifyNewConversation(Guid receiverUserId, object conversationPayload)
-        {
-            if (OnlineUsers.TryGetValue(receiverUserId, out var connections))
-            {
-                List<string> targetConnectionIds;
-                lock (connections)
-                {
-                    targetConnectionIds = connections.ToList();
-                }
+        /*--------------------- CHAT LIST & NOTIFICATIONS ---------------------*/
 
-                // Send to ALL active devices/tabs of the receiver
-                await Clients.Clients(targetConnectionIds).SendAsync("ConversationStarted", conversationPayload);
+        /// <summary>
+        /// Call this when a new message is sent or new chat is created.
+        /// Broadcasts to BOTH participants' personal groups so their ChatList updates in real-time.
+        /// </summary>
+        public async Task NotifyConversationUpdate(List<Guid> participantUserIds, object payload)
+        {
+            foreach (var userId in participantUserIds)
+            {
+                await Clients.Group($"user_{userId.ToString().ToLower()}").SendAsync("ConversationUpdated", payload);
             }
         }
 
-        /*---------------------GETTERS---------------------*/
+        /*--------------------- GETTERS & HELPERS ---------------------*/
+
         public static IReadOnlyCollection<Guid> GetOnlineUsers()
         {
             return OnlineUsers.Keys.ToList().AsReadOnly();

@@ -1,4 +1,4 @@
-const BASE_URL = "http://192.168.0.195:5041/api";
+const BASE_URL = "https://www.mk-private-messenger.somee.com/api";
 
 export const api = {
   login: async (username: string) => {
@@ -22,11 +22,11 @@ export const api = {
     return res.json();
   },
 
-  sendMessage: async ({ conversationId, senderId, content }: { conversationId: string; senderId: string; content: string }) => {
+  sendMessage: async ({ conversationId, senderId, receiverId, content }: { conversationId: string; senderId: string; receiverId: string; content: string }) => {
     const res = await fetch(`${BASE_URL}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ConversationId: conversationId, SenderId: senderId, Content: content })
+      body: JSON.stringify({ ConversationId: conversationId, SenderId: senderId, ReceiverId: receiverId, Content: content })
     });
 
     if (!res.ok) throw new Error("Failed to send message");
